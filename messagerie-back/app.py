@@ -109,19 +109,20 @@ def get_messages():
 
     # Récupérer les messages du chat avec le nom de l'utilisateur qui a envoyé chaque message
     messages = query_db("""
-        SELECT messages.id, messages.content, messages.timestamp, users.username
-        FROM messages
-        JOIN users ON messages.sender_id = users.id
-        WHERE messages.chat_id = ?
-        ORDER BY messages.timestamp
+    SELECT messages.id, messages.content, messages.timestamp, messages.sender_id, users.username
+    FROM messages
+    JOIN users ON messages.sender_id = users.id
+    WHERE messages.chat_id = ?
+    ORDER BY messages.timestamp
     """, (chat_id,))
 
-    # Retourner les messages sous forme de liste avec les informations nécessaires
+    # Retourner les messages avec sender_id inclus
     return jsonify([{
         'id': message['id'],
         'content': message['content'],
         'timestamp': message['timestamp'],
-        'username': message['username']
+        'username': message['username'],
+        'sender_id': message['sender_id']  # Ajouter sender_id ici
     } for message in messages])
 
 
@@ -146,6 +147,27 @@ def send_message():
     return jsonify({"message": "Message envoyé avec succès"}), 201
 
 
+@app.route('/users/search', methods=['GET'])
+def search_users():
+    query = request.args.get('query', '').strip()
+
+    if not query:
+        return jsonify([])  # Retourne une liste vide si la requête est vide
+
+    # Rechercher les utilisateurs par nom ou email
+    users = query_db("""
+        SELECT id, username, email
+        FROM users
+        WHERE username LIKE ? OR email LIKE ?
+        LIMIT 10
+    """, (f"%{query}%", f"%{query}%"))
+
+    return jsonify([
+        {"id": user["id"], "username": user["username"], "email": user["email"]}
+        for user in users
+    ])
+
+
 @app.route('/users/<int:user_id>', methods=['GET'])
 def get_user(user_id):
     # Récupérer l'utilisateur par son ID
@@ -159,6 +181,7 @@ def get_user(user_id):
         })
     else:
         return jsonify({"error": "Utilisateur non trouvé"}), 404
+
 
 if __name__ == '__main__':
     app.run(debug=True)
